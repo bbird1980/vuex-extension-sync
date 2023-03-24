@@ -11,8 +11,7 @@ Current limitations:
 
 ## Installation
 
-`npm i https://github.com/bbird1980/vuex-extension-sync`
-For now it's not published on npm yet.
+`npm i vuex-extension-sync`
 
 ## Usage
 
