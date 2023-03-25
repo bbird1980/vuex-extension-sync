@@ -7,14 +7,18 @@
     "type": "git",
     "url": "git+https://github.com/bbird1980/vuex-extension-sync.git"
   },
-  "keywords": [
-    "vuex",
-    "sync",
-    "store",
-    "extension",
-    "chrome"
-  ],
-  "main": "src/index.js",
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "scripts": {
+    "build": "vite build"
+  },
   "dependencies": {
     "lodash": "^4.17.21"
   },
@@ -23,6 +27,14 @@
     "vuex": ">=4.0.0"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.225"
-  }
+    "@types/chrome": "^0.0.225",
+    "vite": "^4.2.1"
+  },
+  "keywords": [
+    "vuex",
+    "sync",
+    "store",
+    "extension",
+    "chrome"
+  ]
 }
