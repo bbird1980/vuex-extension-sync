@@ -1,13 +1,15 @@
 {
   "name": "vuex-extension-sync",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Evgeny Denisyuk <bbird@bbird.ru>",
   "description": "A Vuex plugin to share store through webextensions components",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bbird1980/vuex-extension-sync.git"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
