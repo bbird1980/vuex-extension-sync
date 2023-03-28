@@ -1,5 +1,6 @@
 import _omit from 'lodash/omit';
 import _pick from 'lodash/pick';
+import _isEqual from 'lodash/isEqual';
 import {SYNC_FROM_KEY, SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
 import Sync from './sync';
 
@@ -29,13 +30,15 @@ function setLocalStoragePromisified(items) {
 
 class Background extends Sync {
     ports = new Set();
+    prevPersistedState;
 
     constructor(params) {
         super(params);
 
         chrome.runtime.onConnect.addListener(this.onConnect.bind(this));
-        store.subscribe(this.onMutation.bind(this));
+        this.prevPersistedState = _pick(this.store.state, this.options.persist)
         this.initPersistentStore().finally();
+        this.store.getters.picked = state => _pick(state, this.options.persist);
     }
 
     onConnect(port) {
@@ -46,7 +49,7 @@ class Background extends Sync {
         this.syncState(port);
     }
 
-    async onMutation(mutation) {
+    async onMutation(mutation, state) {
         const {type, payload} = mutation;
         const senderPortName = payload?.[SYNC_FROM_KEY] ?? 'self';
         this.log(`[Background][onMutation] Received mutation from "${senderPortName}"`, mutation);
@@ -67,7 +70,14 @@ class Background extends Sync {
             }
         });
 
-        await this.persistState();
+        if (this.options.persist?.length) {
+            const newPersistedState = _pick(state, this.options.persist);
+            if (!_isEqual(this.prevPersistedState, newPersistedState)) {
+                this.log('[Background][persistState] Persisting state', this.options.persist);
+                await this.persistState(newPersistedState);
+            }
+        }
+        this.prevPersistedState = _pick(state, this.options.persist);
     }
 
     onMessage(message, port) {
@@ -93,13 +103,7 @@ class Background extends Sync {
         });
     }
 
-    async persistState() {
-        console.log(`[syncPlugin][Background][persistState] Persisting state`);
-        if (!this.options.persist?.length) {
-            console.log(`[syncPlugin][Background][persistState] No keys defined`);
-            return;
-        }
-        const data = _pick(this.store.state, this.options.persist);
+    async persistState(data) {
         try {
             this.log('[Background][persistState] Writing to localstorage');
             await setLocalStoragePromisified({[SYNC_STORAGE_KEY]: data});
