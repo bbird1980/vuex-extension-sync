@@ -1,6 +1,7 @@
 import _omit from 'lodash/omit';
 import _pick from 'lodash/pick';
 import {SYNC_FROM_KEY, SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
+import Sync from './sync';
 
 function getLocalStoragePromisified(key) {
     return new Promise((resolve, reject) => {
@@ -26,14 +27,11 @@ function setLocalStoragePromisified(items) {
     });
 }
 
-class Background {
-    store;
-    options;
+class Background extends Sync {
     ports = new Set();
 
-    constructor({store, options}) {
-        this.store = store;
-        this.options = options;
+    constructor(params) {
+        super(params);
 
         chrome.runtime.onConnect.addListener(this.onConnect.bind(this));
         store.subscribe(this.onMutation.bind(this));
@@ -41,7 +39,7 @@ class Background {
     }
 
     onConnect(port) {
-        console.log(`[syncPlugin][Background][onConnect][${port.name}] Connected`);
+        this.log(`[Background][onConnect][${port.name}] Connected`);
         this.ports.add(port);
         port.onMessage.addListener(message => this.onMessage(message, port));
         port.onDisconnect.addListener(() => this.onDisconnect(port));
@@ -51,10 +49,10 @@ class Background {
     async onMutation(mutation) {
         const {type, payload} = mutation;
         const senderPortName = payload?.[SYNC_FROM_KEY] ?? 'self';
-        console.log(`[syncPlugin][Background][onMutation] Received mutation from "${senderPortName}"`, mutation);
+        this.log(`[Background][onMutation] Received mutation from "${senderPortName}"`, mutation);
 
         if (this.options.ignore && this.options.ignore.includes(type)) {
-            console.warn(`[syncPlugin][Background][onMutation] Mutation "${type}" is ignored`);
+            this.warn(`[Background][onMutation] Mutation "${type}" is ignored`);
             return;
         }
 
@@ -65,7 +63,7 @@ class Background {
                     data: {type, payload: _omit(payload, [SYNC_FROM_KEY])},
                 };
                 openedPort.postMessage(message);
-                console.log(`[syncPlugin][Background][onMutation] Broadcast from "${senderPortName}" to "${openedPort.name}":`, message);
+                this.log(`[Background][onMutation] Broadcast from "${senderPortName}" to "${openedPort.name}":`, message);
             }
         });
 
@@ -73,9 +71,9 @@ class Background {
     }
 
     onMessage(message, port) {
-        console.log(`[syncPlugin][Background][onMessage][${port.name}] Received message`, message);
+        this.log(`[Background][onMessage][${port.name}] Received message`, message);
         if (message.type === SYNC_MUTATION_KEY) {
-            console.log(`[syncPlugin][Background][onMessage][${port.name}] Applying mutation`);
+            this.log(`[Background][onMessage][${port.name}] Applying mutation`);
             const {type, payload} = message.data;
             const injectedPayload = {...payload, [SYNC_FROM_KEY]: port.name};
             this.store.commit(type, injectedPayload);
@@ -83,12 +81,12 @@ class Background {
     }
 
     onDisconnect(port) {
-        console.log(`[syncPlugin][Background][onDisconnect][${port.name}] Disconnected`);
+        this.log(`[Background][onDisconnect][${port.name}] Disconnected`);
         this.ports.delete(port);
     }
 
     syncState(port) {
-        console.log(`[syncPlugin][Background][syncState][${port.name}] Sync state with port`);
+        this.log(`[Background][syncState][${port.name}] Sync state with port`);
         port.postMessage({
             type: SYNC_STATE_KEY,
             data: this.store.state,
@@ -103,33 +101,33 @@ class Background {
         }
         const data = _pick(this.store.state, this.options.persist);
         try {
-            console.log(`[syncPlugin][Background][persistState] Writing to localstorage`, this.options.persist);
+            this.log('[Background][persistState] Writing to localstorage');
             await setLocalStoragePromisified({[SYNC_STORAGE_KEY]: data});
-            console.log(`[syncPlugin][Background][persistState] Successfully`);
+            this.log('[Background][persistState] Successfully');
         } catch (e) {
-            console.error(`[syncPlugin][Background][persistState] Error:`, e);
+            this.error('[Background][persistState] Error:', e);
         }
     }
 
     async initPersistentStore() {
-        console.log(`[syncPlugin][Background][initPersistentStore] Init persisted state`);
+        this.log('[Background][initPersistentStore] Init persisted state');
         if (!this.options.persist?.length) {
-            console.log(`[syncPlugin][Background][initPersistentStore] No keys defined`);
+            this.log('[Background][initPersistentStore] No keys defined');
             return;
         }
-        console.log(`[syncPlugin][Background][initPersistentStore] Reading from localstorage`);
+        this.log('[Background][initPersistentStore] Reading from localstorage');
         try {
             const data = await getLocalStoragePromisified(SYNC_STORAGE_KEY);
             if (data === null) {
-                console.log(`[syncPlugin][Background][initPersistentStore] Localstorage is empty`);
+                this.log('[Background][initPersistentStore] Localstorage is empty');
                 return;
             }
             this.store.replaceState({...this.store.state, ..._pick(data, this.options.persist)});
-            console.log('[syncPlugin][Background][initPersistentStore] Localstorage found, sync it with all ports');
+            this.log('[Background][initPersistentStore] Localstorage found, sync it with all ports');
             this.ports.forEach(this.syncState);
-            console.log(`[syncPlugin][Background][initPersistentStore] Successfully`);
+            this.log('[Background][initPersistentStore] Successfully');
         } catch (e) {
-            console.error(`[syncPlugin][Background][initPersistentStore] Error:`, e);
+            this.error('[Background][initPersistentStore] Error:', e);
         }
     }
 }

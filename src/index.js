@@ -2,8 +2,6 @@ import Page from './page';
 import Background from './background';
 
 export default function(options) {
-    console.log('[syncPlugin] options', options);
-
     if (options.persist && !(Array.isArray(options.persist) && options.persist.every(i => typeof i === 'string'))) {
         throw TypeError('options.persist must be Array of strings');
     }
