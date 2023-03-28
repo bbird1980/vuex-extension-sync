@@ -124,8 +124,8 @@ class Background {
                 console.log(`[syncPlugin][Background][initPersistentStore] Localstorage is empty`);
                 return;
             }
-            this.store.replaceState(_pick(data, this.options.persist));
-            console.log(`[syncPlugin][Background][initPersistentStore] Localstorage found, sync it with all ports`);
+            this.store.replaceState({...this.store.state, ..._pick(data, this.options.persist)});
+            console.log('[syncPlugin][Background][initPersistentStore] Localstorage found, sync it with all ports');
             this.ports.forEach(this.syncState);
             console.log(`[syncPlugin][Background][initPersistentStore] Successfully`);
         } catch (e) {
