@@ -13,7 +13,7 @@ export default function(options) {
         if (!('getBackgroundPage' in chrome.runtime) && 'onStartup' in chrome.runtime) {
             return new Background({options, store});
         } else {
-            const connectionName = `cs_${Math.random().toString(36).substr(2, 9)}`;
+            const connectionName = `cs_${Math.random().toString(36).substring(2, 9)}`;
             return new Page({options, store, connectionName});
         }
     };
