@@ -51,3 +51,13 @@ VuexExtensionSync({
   ignore: ['SOME_MUTATION_1', 'SOME_MUTATION_N'],
 })
 ```
+
+## Debug 
+
+For debugging use `debug: Boolean` plugin option. 
+
+```javascript
+VuexExtensionSync({
+  debug: true,
+})
+```
