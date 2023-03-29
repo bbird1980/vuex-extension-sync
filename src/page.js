@@ -1,5 +1,4 @@
-import _omit from 'lodash/omit';
-import {SYNC_KEY, SYNC_MUTATION_KEY, SYNC_STATE_KEY} from './const';
+import {SYNC_MUTATION_KEY, SYNC_STATE_KEY} from './const';
 import Sync from './sync';
 
 class Page extends Sync {
@@ -7,6 +6,7 @@ class Page extends Sync {
     connectionName;
     initialized = false;
     pendingMutationsQueue = [];
+    externalMutations = [];
 
     constructor(params) {
         super(params);
@@ -32,8 +32,8 @@ class Page extends Sync {
             //apply mutation
             this.log(`[Page][${this.connectionName}][onMessage] Applying mutation`);
             const {type, payload} = data;
-            const injectedPayload = {...payload, [SYNC_KEY]: true};
-            this.store.commit(type, injectedPayload);
+            this.externalMutations.push(data);
+            this.store.commit(type, payload);
         }
     }
 
@@ -49,13 +49,15 @@ class Page extends Sync {
             return;
         }
         //do not send back to bg applied mutation
-        if (!(mutation.payload && SYNC_KEY in mutation.payload)) {
+        const externalMutation = this.externalMutations.findIndex(sm => sm.type === mutation.type && sm.payload === mutation.payload);
+        if (externalMutation === -1) {
             this.log(`[Page][${this.connectionName}][onMutation] Sync it to bg`);
             this.port.postMessage({
                 type: SYNC_MUTATION_KEY,
-                data: {type: mutation.type, payload: _omit(mutation.payload, [SYNC_KEY])},
+                data: {type: mutation.type, payload: mutation.payload},
             });
         } else {
+            this.externalMutations.splice(externalMutation, 1);
             this.log(`[Page][${this.connectionName}][onMutation] Skip applied`);
         }
     }

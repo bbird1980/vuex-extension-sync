@@ -1,7 +1,6 @@
-import _omit from 'lodash/omit';
 import _pick from 'lodash/pick';
 import _isEqual from 'lodash/isEqual';
-import {SYNC_FROM_KEY, SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
+import {SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
 import Sync from './sync';
 
 function getLocalStoragePromisified(key) {
@@ -31,12 +30,13 @@ function setLocalStoragePromisified(items) {
 class Background extends Sync {
     ports = new Set();
     prevPersistedState;
+    syncFromMutations = [];
 
     constructor(params) {
         super(params);
 
         chrome.runtime.onConnect.addListener(this.onConnect.bind(this));
-        this.prevPersistedState = _pick(this.store.state, this.options.persist)
+        this.prevPersistedState = _pick(this.store.state, this.options.persist);
         this.initPersistentStore().finally();
         this.store.getters.picked = state => _pick(state, this.options.persist);
     }
@@ -51,7 +51,8 @@ class Background extends Sync {
 
     async onMutation(mutation, state) {
         const {type, payload} = mutation;
-        const senderPortName = payload?.[SYNC_FROM_KEY] ?? 'self';
+        const syncFromMutationIndex = this.syncFromMutations.findIndex(sm => sm.type === type && sm.payload === payload);
+        const senderPortName = syncFromMutationIndex === -1 ? 'self' : this.syncFromMutations[syncFromMutationIndex].from;
         this.log(`[Background][onMutation] Received mutation from "${senderPortName}"`, mutation);
 
         if (this.options.ignore && this.options.ignore.includes(type)) {
@@ -63,12 +64,14 @@ class Background extends Sync {
             if (openedPort.name !== senderPortName) {
                 const message = {
                     type: SYNC_MUTATION_KEY,
-                    data: {type, payload: _omit(payload, [SYNC_FROM_KEY])},
+                    data: {type, payload},
                 };
                 openedPort.postMessage(message);
                 this.log(`[Background][onMutation] Broadcast from "${senderPortName}" to "${openedPort.name}":`, message);
             }
         });
+
+        this.syncFromMutations.splice(syncFromMutationIndex, 1);
 
         if (this.options.persist?.length) {
             const newPersistedState = _pick(state, this.options.persist);
@@ -85,8 +88,8 @@ class Background extends Sync {
         if (message.type === SYNC_MUTATION_KEY) {
             this.log(`[Background][onMessage][${port.name}] Applying mutation`);
             const {type, payload} = message.data;
-            const injectedPayload = {...payload, [SYNC_FROM_KEY]: port.name};
-            this.store.commit(type, injectedPayload);
+            this.syncFromMutations.push({type, payload, from: port.name});
+            this.store.commit(type, payload);
         }
     }
 
