@@ -26,6 +26,7 @@ export default createStore({
   plugins: [VuexExtensionSync({
     persist: ['somePersistedKey'],
     ignore: ['SOME_MUTATION'],
+    debug: false,
   })],
 });
 ```
@@ -54,7 +55,11 @@ VuexExtensionSync({
 
 ## Debug 
 
-For debugging use `debug: Boolean` plugin option. 
+For debugging use `debug: Boolean|String` plugin option. Default `info`.
+
+Available levels: `debug`, `info`, `warn`, `error`.
+
+Boolean values mapping: `true -> debug`, `false -> info`.  
 
 ```javascript
 VuexExtensionSync({

@@ -1,6 +1,7 @@
 class Sync {
     store;
     options;
+    logLevel = 'info';
 
     constructor({store, options}) {
         this.store = store;
@@ -12,29 +13,18 @@ class Sync {
             //todo: deserializer: JSON.parse,
             ...options,
         };
+        this.logLevel = this.options.debug === true
+            ? 'debug'
+            : (
+                this.options.debug === false
+                    ? 'info'
+                    : (this.options.debug || 'info')
+            );
         this.store.subscribe(this.onMutation.bind(this));
-    }
-
-    log(msg, ...args) {
-        if (this.options.debug) {
-            this.#logger('log', msg, args);
-        }
-    }
-
-    warn(msg, ...args) {
-        this.#logger('warn', msg, args);
-    }
-
-    error(msg, ...args) {
-        this.#logger('error', msg, args);
     }
 
     onMutation(mutation, stat) {
         throw new TypeError('onMutation must be implemented');
-    }
-
-    #logger(type, msg, args) {
-        console[type].apply(null, [`[vuex-extension-sync]${msg}`, ...args]);
     }
 }
 

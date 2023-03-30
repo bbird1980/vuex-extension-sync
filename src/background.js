@@ -2,6 +2,7 @@ import _pick from 'lodash/pick';
 import _isEqual from 'lodash/isEqual';
 import {SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
 import Sync from './sync';
+import createLogger from './logger';
 
 function getLocalStoragePromisified(key) {
     return new Promise((resolve, reject) => {
@@ -28,6 +29,7 @@ function setLocalStoragePromisified(items) {
 }
 
 class Background extends Sync {
+    logger = createLogger(['vuex-extension-sync', 'Background'], this.logLevel);
     ports = new Set();
     prevPersistedState;
     syncFromMutations = [];
@@ -42,7 +44,7 @@ class Background extends Sync {
     }
 
     onConnect(port) {
-        this.log(`[Background][onConnect][${port.name}] Connected`);
+        this.logger.debug(`[onConnect][${port.name}] Connected`);
         this.ports.add(port);
         port.onMessage.addListener(message => this.onMessage(message, port));
         port.onDisconnect.addListener(() => this.onDisconnect(port));
@@ -53,10 +55,10 @@ class Background extends Sync {
         const {type, payload} = mutation;
         const syncFromMutationIndex = this.syncFromMutations.findIndex(sm => sm.type === type && sm.payload === payload);
         const senderPortName = syncFromMutationIndex === -1 ? 'self' : this.syncFromMutations[syncFromMutationIndex].from;
-        this.log(`[Background][onMutation] Received mutation from "${senderPortName}"`, mutation);
+        this.logger.debug(`[onMutation] Received mutation from "${senderPortName}"`, mutation);
 
         if (this.options.ignore && this.options.ignore.includes(type)) {
-            this.warn(`[Background][onMutation] Mutation "${type}" is ignored`);
+            this.logger.warn(`[onMutation] Mutation "${type}" is ignored`);
             return;
         }
 
@@ -67,7 +69,7 @@ class Background extends Sync {
                     data: {type, payload},
                 };
                 openedPort.postMessage(message);
-                this.log(`[Background][onMutation] Broadcast from "${senderPortName}" to "${openedPort.name}":`, message);
+                this.logger.debug(`[onMutation] Broadcast from "${senderPortName}" to "${openedPort.name}":`, message);
             }
         });
 
@@ -76,7 +78,7 @@ class Background extends Sync {
         if (this.options.persist?.length) {
             const newPersistedState = _pick(state, this.options.persist);
             if (!_isEqual(this.prevPersistedState, newPersistedState)) {
-                this.log('[Background][persistState] Persisting state', this.options.persist);
+                this.logger.debug('[persistState] Persisting state', this.options.persist);
                 await this.persistState(newPersistedState);
             }
         }
@@ -84,9 +86,9 @@ class Background extends Sync {
     }
 
     onMessage(message, port) {
-        this.log(`[Background][onMessage][${port.name}] Received message`, message);
+        this.logger.debug(`[onMessage][${port.name}] Received message`, message);
         if (message.type === SYNC_MUTATION_KEY) {
-            this.log(`[Background][onMessage][${port.name}] Applying mutation`);
+            this.logger.debug(`[onMessage][${port.name}] Applying mutation`);
             const {type, payload} = message.data;
             this.syncFromMutations.push({type, payload, from: port.name});
             this.store.commit(type, payload);
@@ -94,12 +96,12 @@ class Background extends Sync {
     }
 
     onDisconnect(port) {
-        this.log(`[Background][onDisconnect][${port.name}] Disconnected`);
+        this.logger.debug(`[onDisconnect][${port.name}] Disconnected`);
         this.ports.delete(port);
     }
 
     syncState(port) {
-        this.log(`[Background][syncState][${port.name}] Sync state with port`);
+        this.logger.debug(`[syncState][${port.name}] Sync state with port`);
         port.postMessage({
             type: SYNC_STATE_KEY,
             data: this.store.state,
@@ -108,33 +110,33 @@ class Background extends Sync {
 
     async persistState(data) {
         try {
-            this.log('[Background][persistState] Writing to localstorage');
+            this.logger.debug('[persistState] Writing to localstorage');
             await setLocalStoragePromisified({[SYNC_STORAGE_KEY]: data});
-            this.log('[Background][persistState] Successfully');
+            this.logger.debug('[persistState] Successfully');
         } catch (e) {
-            this.error('[Background][persistState] Error:', e);
+            this.logger.error('[persistState] Error:', e);
         }
     }
 
     async initPersistentStore() {
-        this.log('[Background][initPersistentStore] Init persisted state');
+        this.logger.debug('[initPersistentStore] Init persisted state');
         if (!this.options.persist?.length) {
-            this.log('[Background][initPersistentStore] No keys defined');
+            this.logger.debug('[initPersistentStore] No keys defined');
             return;
         }
-        this.log('[Background][initPersistentStore] Reading from localstorage');
+        this.logger.debug('[initPersistentStore] Reading from localstorage');
         try {
             const data = await getLocalStoragePromisified(SYNC_STORAGE_KEY);
             if (data === null) {
-                this.log('[Background][initPersistentStore] Localstorage is empty');
+                this.logger.debug('[initPersistentStore] Localstorage is empty');
                 return;
             }
             this.store.replaceState({...this.store.state, ..._pick(data, this.options.persist)});
-            this.log('[Background][initPersistentStore] Localstorage found, sync it with all ports');
+            this.logger.debug('[initPersistentStore] Localstorage found, sync it with all ports');
             this.ports.forEach(this.syncState);
-            this.log('[Background][initPersistentStore] Successfully');
+            this.logger.debug('[initPersistentStore] Successfully');
         } catch (e) {
-            this.error('[Background][initPersistentStore] Error:', e);
+            this.logger.error('[initPersistentStore] Error:', e);
         }
     }
 }
