@@ -1,6 +1,6 @@
 {
   "name": "vuex-extension-sync",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": "Evgeny Denisyuk <bbird@bbird.ru>",
   "description": "A Vuex plugin to share store through webextensions components",
   "repository": {
