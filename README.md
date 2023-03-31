@@ -57,7 +57,7 @@ VuexExtensionSync({
 
 For debugging use `debug: Boolean|String` plugin option. Default `info`.
 
-Available levels: `debug`, `info`, `warn`, `error`.
+Available levels: `trace`, `debug`, `info`, `warn`, `error`.
 
 Boolean values mapping: `true -> debug`, `false -> info`.  
 

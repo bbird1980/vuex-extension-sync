@@ -15,13 +15,9 @@ class Sync {
             //todo: deserializer: JSON.parse,
             ...options,
         };
-        this.logLevel = this.options.debug === true
-            ? 'debug'
-            : (
-                this.options.debug === false
-                    ? 'info'
-                    : (this.options.debug || 'info')
-            );
+        this.logLevel = this.options.debug === true ? 'debug' : (
+            this.options.debug === false ? 'info' : (this.options.debug || 'info')
+        );
         this.store.subscribe(this.onMutation.bind(this));
     }
 
