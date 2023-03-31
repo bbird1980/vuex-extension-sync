@@ -63,6 +63,43 @@ Boolean values mapping: `true -> debug`, `false -> info`.
 
 ```javascript
 VuexExtensionSync({
-  debug: true,
+  debug: 'warn',
 })
+```
+
+## Strategy
+
+In a real extension, I ran into a problem with state synchronization between all pages.
+
+I have music player control panel extension, when popup play button pressed mutation PLAY sent to content-script and activate play on site.
+
+When site's player starts playing content-script sent back to background mutation PLAY with actual playing state, background updates it's store.
+
+Now if I opened two tabs with same player site, popup's button click sent PLAY to both pages, they started playing and sent back PLAY, background got it from first and replicated to second, second stopped playing and sent it back. So we have a recursion.
+
+To solve this problem I added new broadcast strategy to sync mutations only with master content-script page and ignore other content-script pages, but keep syncing with popup, options pages. Master page is elected by function. When master page is closed there is new election called.
+
+Plugin options:
+`strategy: "broadcast" | "master"` - default `broadcast`.
+When `broadcast` chosen it's sync between all pages;
+When `master` chosen it's sync only with master content-script which elected by default function "first is master";
+`electionFunc: function` - default `null` means function "first is master":
+
+```typescript
+function electionFuncFirstIsMaster(ports: Map<Port, Meta>): Port | undefined {
+  const [[port] = []] = [...ports.entries()]
+    .filter(([, meta]) => meta.usedInMasterStrategy)
+    .sort(([, aMeta], [, bMeta]) => aMeta.created - bMeta.created);
+  return port;
+}
+
+type Port = {
+  //@see https://developer.chrome.com/docs/extensions/reference/runtime/#type-Port
+}
+
+type Meta = {
+    usedInMasterStrategy: boolean, //is used for master port election, cs pages only 
+    master: boolean, //is master
+    created: number //timestamp
+}
 ```

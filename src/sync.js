@@ -9,6 +9,8 @@ class Sync {
             persist: [],
             ignore: [],
             debug: false,
+            strategy: 'broadcast',
+            electionFunc: null,
             //todo: serializer: JSON.stringify,
             //todo: deserializer: JSON.parse,
             ...options,

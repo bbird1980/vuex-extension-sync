@@ -13,7 +13,7 @@ class Page extends Sync {
     constructor(params) {
         super(params);
 
-        this.connectionName = params.connectionName;
+        this.connectionName = `${params.pageType}_${Math.random().toString(36).substring(2, 9)}`;
         this.port = chrome.runtime.connect({name: this.connectionName});
         this.port.onMessage.addListener(this.onMessage.bind(this));
     }

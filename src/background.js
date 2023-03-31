@@ -30,7 +30,7 @@ function setLocalStoragePromisified(items) {
 
 class Background extends Sync {
     logger = createLogger(['vuex-extension-sync', 'Background'], this.logLevel);
-    ports = new Set();
+    ports = new Map();
     prevPersistedState;
     syncFromMutations = [];
 
@@ -45,10 +45,62 @@ class Background extends Sync {
 
     onConnect(port) {
         this.logger.debug(`[onConnect][${port.name}] Connected`);
-        this.ports.add(port);
+        this.ports.set(
+            port,
+            this.options.strategy === 'master'
+                ? {usedInMasterStrategy: port.name.startsWith('cs_'), master: false, created: Date.now()}
+                : {},
+        );
+        this.masterElection();
         port.onMessage.addListener(message => this.onMessage(message, port));
         port.onDisconnect.addListener(() => this.onDisconnect(port));
+        if (this.options.strategy === 'master' && !this.isMaster(port) && this.usedInMasterStrategy(port)) {
+            this.logger.debug(`[onMessage][${port.name}] Skip syncState due master strategy and not master port`);
+            return;
+        }
         this.syncState(port);
+    }
+
+    masterElection() {
+        if (this.options.strategy !== 'master') {
+            return;
+        }
+        if (!this.ports.size) {
+            return;
+        }
+        const [[currentMasterPort] = []] = [...this.ports.entries()].filter(([, meta]) => meta.master === true);
+        let newMasterPort;
+        if (this.options.electionFunc) {
+            this.logger.debug('[masterElection] Using custom election function');
+            newMasterPort = this.options.electionFunc(this.ports);
+        } else {
+            this.logger.debug('[masterElection] Using default election function (first is master)');
+            const [[port] = []] = [...this.ports.entries()]
+                .filter(([,meta]) => meta.usedInMasterStrategy)
+                .sort(([, aMeta], [, bMeta]) => aMeta.created - bMeta.created);
+            newMasterPort = port;
+        }
+        if (!newMasterPort) {
+            this.logger.debug(`[masterElection] Master not found`, this.ports);
+            return;
+        }
+        if (currentMasterPort) {
+            this.ports.set(currentMasterPort, {...this.ports.get(currentMasterPort), master: false});
+        }
+        this.ports.set(newMasterPort, {...this.ports.get(newMasterPort), master: true});
+        if (currentMasterPort !== newMasterPort) {
+            this.logger.debug('[masterElection] New master sync state');
+            this.syncState(newMasterPort);
+        }
+        this.logger.debug(`[masterElection] Master chosen -> "${newMasterPort.name}" from ports`, this.ports);
+    }
+
+    usedInMasterStrategy(port) {
+        return this.ports.get(port).usedInMasterStrategy;
+    }
+
+    isMaster(port) {
+        return this.ports.get(port).master;
     }
 
     async onMutation(mutation, state) {
@@ -62,7 +114,11 @@ class Background extends Sync {
             return;
         }
 
-        this.ports.forEach(openedPort => {
+        this.ports.forEach((meta, openedPort) => {
+            if (this.options.strategy === 'master' && !this.isMaster(openedPort) && this.usedInMasterStrategy(openedPort)) {
+                this.logger.debug(`[onMessage][${openedPort.name}] Skip mutation broadcast to this port due master strategy and not master port`);
+                return;
+            }
             if (openedPort.name !== senderPortName) {
                 const message = {
                     type: SYNC_MUTATION_KEY,
@@ -78,7 +134,7 @@ class Background extends Sync {
         if (this.options.persist?.length) {
             const newPersistedState = _pick(state, this.options.persist);
             if (!_isEqual(this.prevPersistedState, newPersistedState)) {
-                this.logger.debug('[persistState] Persisting state', this.options.persist);
+                this.logger.debug('[onMutation] Persisting state', this.options.persist);
                 await this.persistState(newPersistedState);
             }
         }
@@ -87,6 +143,10 @@ class Background extends Sync {
 
     onMessage(message, port) {
         this.logger.debug(`[onMessage][${port.name}] Received message`, message);
+        if (this.options.strategy === 'master' && !this.isMaster(port) && this.usedInMasterStrategy(port)) {
+            this.logger.debug(`[onMessage][${port.name}] Skip message handler for this port due master strategy and not master port`);
+            return;
+        }
         if (message.type === SYNC_MUTATION_KEY) {
             this.logger.debug(`[onMessage][${port.name}] Applying mutation`);
             const {type, payload} = message.data;
@@ -98,6 +158,7 @@ class Background extends Sync {
     onDisconnect(port) {
         this.logger.debug(`[onDisconnect][${port.name}] Disconnected`);
         this.ports.delete(port);
+        this.masterElection();
     }
 
     syncState(port) {
@@ -133,7 +194,7 @@ class Background extends Sync {
             }
             this.store.replaceState({...this.store.state, ..._pick(data, this.options.persist)});
             this.logger.debug('[initPersistentStore] Localstorage found, sync it with all ports');
-            this.ports.forEach(this.syncState);
+            this.ports.forEach((meta, port) => this.syncState(port));
             this.logger.debug('[initPersistentStore] Successfully');
         } catch (e) {
             this.logger.error('[initPersistentStore] Error:', e);
