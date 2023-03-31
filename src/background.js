@@ -193,6 +193,11 @@ class Background extends Sync {
                 return;
             }
             this.store.replaceState({...this.store.state, ..._pick(data, this.options.persist)});
+            const newPersistedState = _pick(this.store.state, this.options.persist);
+            if (!_isEqual(data, newPersistedState)) {
+                this.logger.debug('[initPersistentStore] Persisting state', this.options.persist);
+                await this.persistState(newPersistedState);
+            }
             this.logger.debug('[initPersistentStore] Localstorage found, sync it with all ports');
             this.ports.forEach((meta, port) => this.syncState(port));
             this.logger.debug('[initPersistentStore] Successfully');
