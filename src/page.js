@@ -1,4 +1,4 @@
-import {SYNC_MUTATION_KEY, SYNC_STATE_KEY} from './const';
+import {KEEP_ALIVE_PORT_NAME, SYNC_MUTATION_KEY, SYNC_STATE_KEY} from './const';
 import Sync from './sync';
 import createLogger from './logger';
 
@@ -16,6 +16,9 @@ class Page extends Sync {
         this.connectionName = `${params.pageType}_${Math.random().toString(36).substring(2, 9)}`;
         this.port = chrome.runtime.connect({name: this.connectionName});
         this.port.onMessage.addListener(this.onMessage.bind(this));
+        if (this.options.keepAlive) {
+            this.keepAlive(params.pageType);
+        }
     }
 
     onMessage(message) {
@@ -76,6 +79,19 @@ class Page extends Sync {
             this.logger.debug(`[${this.connectionName}][processPendingMutationsQueue] Processing pending mutation`, type, payload);
             this.store.commit(type, payload);
         } while (this.pendingMutationsQueue.length > 0);
+    }
+
+    keepAlive(pageType) {
+        if (pageType !== 'cs') {
+            return;
+        }
+        let keepAlivePort;
+        const connect = () => {
+            this.logger.debug('[keepAlive] (re)connect');
+            keepAlivePort = chrome.runtime.connect({name: KEEP_ALIVE_PORT_NAME});
+            keepAlivePort.onDisconnect.addListener(connect);
+        };
+        connect();
     }
 }
 

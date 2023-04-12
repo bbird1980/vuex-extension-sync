@@ -67,6 +67,16 @@ VuexExtensionSync({
 })
 ```
 
+## Keepalive background worker
+
+To prevent background worker from termination by timeout use `keepAlive: Boolean` plugin option. Default `true`.
+
+```javascript
+VuexExtensionSync({
+  keepAlive: true,
+})
+```
+
 ## Strategy
 
 In a real extension, I ran into a problem with state synchronization between all pages.
