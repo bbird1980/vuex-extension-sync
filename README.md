@@ -69,13 +69,7 @@ VuexExtensionSync({
 
 ## Keepalive background worker
 
-To prevent background worker from termination by timeout use `keepAlive: Boolean` plugin option. Default `true`.
-
-```javascript
-VuexExtensionSync({
-  keepAlive: true,
-})
-```
+Content page keeps reconnecting to terminated worker. When it's reconnects mutation `@@SYNC_RECONNECT_MUTATION` is fired. If you need to do something on reconnect (resend some state for example), create `@@SYNC_RECONNECT_MUTATION` mutation with some logic or create it empty and use `store.subscribe` to catch it.
 
 ## Strategy
 

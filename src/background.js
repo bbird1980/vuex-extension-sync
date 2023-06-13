@@ -1,6 +1,6 @@
 import _pick from 'lodash/pick';
 import _isEqual from 'lodash/isEqual';
-import {KEEP_ALIVE_PORT_NAME, SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
+import {SYNC_MUTATION_KEY, SYNC_STATE_KEY, SYNC_STORAGE_KEY} from './const';
 import Sync from './sync';
 import createLogger from './logger';
 
@@ -38,18 +38,23 @@ class Background extends Sync {
         super(params);
 
         chrome.runtime.onConnect.addListener(this.onConnect.bind(this));
-        if (this.options.keepAlive) {
-            this.keepAlive();
-        }
         this.prevPersistedState = _pick(this.store.state, this.options.persist);
         this.initPersistentStore().finally();
         this.store.getters.picked = state => _pick(state, this.options.persist);
+        //this.notificationDebug('app started');
     }
 
+    //notificationDebug(message) {
+    //    chrome.notifications.create(performance.now().toString(), {
+    //        type: 'basic',
+    //        iconUrl: '/assets/playlist-cover_no_cover3.png',
+    //        title: 'DEBUG',
+    //        message: `[vuex-extension-sync] ${message}`,
+    //        requireInteraction: true,
+    //    });
+    //}
+
     onConnect(port) {
-        if (this.options.keepAlive && port.name === KEEP_ALIVE_PORT_NAME) {
-            return;
-        }
         this.logger.debug(`[onConnect][${port.name}] Connected`);
         this.ports.set(
             port,
@@ -210,27 +215,6 @@ class Background extends Sync {
         } catch (e) {
             this.logger.error('[initPersistentStore] Error:', e);
         }
-    }
-
-    keepAlive() {
-        const deleteTimer = port => {
-            if (port._timer) {
-                clearTimeout(port._timer);
-                delete port._timer;
-            }
-        };
-        chrome.runtime.onConnect.addListener(port => {
-            if (port.name !== KEEP_ALIVE_PORT_NAME) {
-                return;
-            }
-            this.logger.debug('[keepAlive] Connected');
-            port.onDisconnect.addListener(port => deleteTimer(port));
-            port._timer = setTimeout(port => {
-                deleteTimer(port);
-                this.logger.debug('[keepAlive] Disconnected');
-                port.disconnect();
-            }, 250000, port);
-        });
     }
 }
 
