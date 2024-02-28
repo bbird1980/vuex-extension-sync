@@ -1,0 +1,37 @@
+{
+  "version": "0.0.1",
+  "name": "vuex-extension-sync example",
+  "manifest_version": 3,
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "assets/content-scripts.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/*"
+      ]
+    }
+  ],
+  "permissions": [
+    "storage"
+  ],
+  "options_page": "options/options.html"
+}
